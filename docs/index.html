@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+		<title>webgl2png</title>			
+		<style>
+		* {
+			margin:0; 
+			padding:0; 
+		}
+		body {
+			background:#000;
+		}		
+		canvas {
+			width:256px;
+			height:256px;
+			vertical-align:bottom;
+			background:transparent;
+			display:block;
+		}
+		</style>
+		<script src="./libs.js"></script>
+	</head>
+	<body>
+		<script>
+		
+			!function(e,n){"object"==typeof exports?module.exports=n():"function"==typeof define&&define.amd?define(n):e.crel=n()}(this,function(){function e(){var o,a=arguments,p=a[0],m=a[1],x=2,v=a.length,b=e[f];if(p=e[c](p)?p:d.createElement(p),1===v)return p;if((!l(m,t)||e[u](m)||s(m))&&(--x,m=null),v-x===1&&l(a[x],"string")&&void 0!==p[r])p[r]=a[x];else for(;v>x;++x)if(o=a[x],null!=o)if(s(o))for(var g=0;g<o.length;++g)y(p,o[g]);else y(p,o);for(var h in m)if(b[h]){var N=b[h];typeof N===n?N(p,m[h]):p[i](N,m[h])}else p[i](h,m[h]);return p}var n="function",t="object",o="nodeType",r="textContent",i="setAttribute",f="attrMap",u="isNode",c="isElement",d=typeof document===t?document:{},l=function(e,n){return typeof e===n},a=typeof Node===n?function(e){return e instanceof Node}:function(e){return e&&l(e,t)&&o in e&&l(e.ownerDocument,t)},p=function(n){return e[u](n)&&1===n[o]},s=function(e){return e instanceof Array},y=function(n,t){e[u](t)||(t=d.createT=extNode(t)),n.appendChild(t)};return e[f]={},e[c]=p,e[u]=a,"undefined"!=typeof Proxy&&(e.proxy=new Proxy(e,{get:function(n,t){return!(t in e)&&(e[t]=e.bind(null,t)),e[t]}})),e});
+			
+			var Canvas = function(uid,w,h) {
+				this.uid = uid;
+				this.el = document.createElement("canvas"); 
+				this.el.id = this.uid;
+				this.el.width  = this.width  = w;
+				this.el.height = this.height = h;				
+				this.ctx = this.el.getContext("webgl")||this.el.getContext("experimental-webgl");
+				if(this.ctx) document.body.appendChild(this.el);
+			}
+			
+			var Texture = function(gl,src,w,h) {
+				this.width  = w;
+				this.height = h;
+				this.texture = gl.createTexture();
+				gl.bindTexture(gl.TEXTURE_2D,this.texture);				
+				gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+				gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+				gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+				gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);				
+				gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,this.width,this.height,0,gl.RGBA,gl.UNSIGNED_BYTE,src);
+				gl.bindTexture(gl.TEXTURE_2D,null);
+			}
+					
+			var Plane = function(gl) {
+				this.vertex = [
+					-1.0,  1.0,  0.0,
+					 1.0,  1.0,  0.0,
+					-1.0, -1.0,  0.0,
+					 1.0, -1.0,  0.0
+				];
+				this.vertices = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.vertices);
+				gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(this.vertex),gl.STATIC_DRAW);
+				gl.bindBuffer(gl.ARRAY_BUFFER,null);
+				this.index = [
+					0, 1, 2,
+					3, 2, 1
+				];
+				this.indices = gl.createBuffer();
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indices);
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Int16Array(this.index),gl.STATIC_DRAW);
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+			}
+			
+			var Shader = function(gl,vert,frag,vertices) {
+				this.program = gl.createProgram();
+				var vs = gl.createShader(gl.VERTEX_SHADER);
+				gl.shaderSource(vs,vert);
+				gl.compileShader(vs);							
+				gl.attachShader(this.program,vs);
+				var fs = gl.createShader(gl.FRAGMENT_SHADER);
+				gl.shaderSource(fs,frag);
+				gl.compileShader(fs);
+				gl.attachShader(this.program,fs);
+				gl.linkProgram(this.program);
+				if(gl.getProgramParameter(this.program,gl.LINK_STATUS)) {
+					gl.useProgram(this.program);
+						gl.bindBuffer(gl.ARRAY_BUFFER,vertices);							
+						gl.enableVertexAttribArray(gl.getAttribLocation(this.program,"v"));
+						gl.vertexAttribPointer(gl.getAttribLocation(this.program,"v"),3,gl.FLOAT,false,0,0);
+					gl.useProgram(null);
+				}
+			}
+			
+			var WIDTH  = 256;
+			var HEIGHT = 256;
+			
+			var canvas = new Canvas("stage",WIDTH,HEIGHT);
+			var color = new Uint8Array((WIDTH*HEIGHT)<<2);
+			
+			for(var i=0;i<HEIGHT;i++) { 
+				for(var j=0;j<WIDTH;j++) {
+					
+					var addr = (i*WIDTH+j)<<2;
+					
+					color[addr+0] = i&0xFF;
+					color[addr+1] = 0;
+					color[addr+2] = j&0xFF;
+					color[addr+3] = 0xFF;
+				}	
+			}
+						
+			var gl = canvas.ctx;			
+			
+			gl.enable(gl.BLEND);
+			gl.blendEquation(gl.FUNC_ADD);
+			gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+		  
+		  	var plane = new Plane(gl); 
+			var src = new Texture(gl,color,WIDTH,HEIGHT);
+			var distortion = new Shader(
+				gl,
+				"attribute vec3 v; varying vec2 pt; void main(void) { gl_Position=vec4(v,1.); pt=vec2((v.x+1.)*.5,1.-(v.y+1.)*.5); }",
+				"precision highp float; uniform sampler2D src; varying vec2 pt; void main(void) { gl_FragColor=texture2D(src,pt); }",
+				plane.vertices
+			);
+			
+			gl.clearColor(0.0,0.0,0.0,0.0);
+			
+			var program = distortion.program;
+			gl.useProgram(program);
+				gl.activeTexture(0x84C0);
+				gl.bindTexture(gl.TEXTURE_2D,src.texture);
+				gl.uniform1i(gl.getUniformLocation(program,"src"),0);							
+					gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,plane.indices);
+					gl.drawElements(gl.TRIANGLES,plane.index.length,gl.UNSIGNED_SHORT,0);
+				gl.bindTexture(gl.TEXTURE_2D,null);
+			gl.useProgram(null);	
+			
+			var pixels = new Uint8Array(Module.HEAPU8.buffer,Module._malloc((WIDTH*HEIGHT)<<2),(WIDTH*HEIGHT)<<2);
+
+			var tmp = new Uint8Array((WIDTH*HEIGHT)<<2);
+			gl.readPixels(0,0,WIDTH,HEIGHT,gl.RGBA,gl.UNSIGNED_BYTE,tmp); 
+			
+			for(var i=0;i<HEIGHT;i++) { 
+				for(var j=0;j<WIDTH;j++) {
+					
+					var dst = (i*WIDTH+j)<<2;
+					var src = ((HEIGHT-1-i)*WIDTH+j)<<2;
+					
+					pixels[dst+0] = tmp[src+0];
+					pixels[dst+1] = tmp[src+1];
+					pixels[dst+2] = tmp[src+2];
+					pixels[dst+3] = tmp[src+3];
+				}	
+			}
+			
+			crel(document.body,crel("img",{"src":"data:image/png;base64,"+Module.cwrap("base64","string",["number,number,number"])(
+				pixels.byteOffset,
+				WIDTH,
+				HEIGHT
+			)}));
+			
+		</script>
+	</body>
+</html>
